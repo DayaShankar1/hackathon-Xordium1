@@ -13,7 +13,7 @@ import { ISSUE_STATUS_LABELS } from "./constants";
 import { removeEvidence, uploadEvidence, validateEvidenceFiles } from "./storage";
 
 const transitions: Record<CampusIssueStatus, CampusIssueStatus[]> = {
-  submitted: ["acknowledged", "rejected"],
+  submitted: ["acknowledged", "resolved", "rejected"],
   acknowledged: ["in_progress", "resolved", "rejected"],
   in_progress: ["acknowledged", "resolved", "rejected"],
   reopened: ["acknowledged", "in_progress", "resolved", "rejected"],

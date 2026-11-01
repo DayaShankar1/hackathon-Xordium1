@@ -622,6 +622,94 @@ export type Database = {
           status: string;
         }
       >;
+      clubs: SimpleTable<
+        {
+          id: string;
+          name: string;
+          description: string | null;
+          category: string | null;
+          logo_path: string | null;
+          created_at: string;
+        },
+        {
+          id?: string;
+          name: string;
+          description?: string | null;
+          category?: string | null;
+          logo_path?: string | null;
+          created_at?: string;
+        }
+      >;
+      events: SimpleTable<
+        {
+          id: string;
+          club_id: string | null;
+          created_by: string | null;
+          title: string;
+          description: string;
+          venue: string;
+          starts_at: string;
+          ends_at: string | null;
+          capacity: number | null;
+          status: "draft" | "published" | "cancelled";
+          created_at: string;
+        },
+        {
+          id?: string;
+          club_id?: string | null;
+          created_by?: string | null;
+          title: string;
+          description: string;
+          venue: string;
+          starts_at: string;
+          ends_at?: string | null;
+          capacity?: number | null;
+          status?: "draft" | "published" | "cancelled";
+          created_at?: string;
+        }
+      >;
+      event_registrations: SimpleTable<
+        {
+          id: string;
+          event_id: string;
+          user_id: string;
+          created_at: string;
+        },
+        {
+          id?: string;
+          event_id: string;
+          user_id: string;
+          created_at?: string;
+        }
+      >;
+      marketplace_listings: SimpleTable<
+        {
+          id: string;
+          user_id: string;
+          title: string;
+          description: string;
+          category: string;
+          condition: "new" | "like_new" | "good" | "fair";
+          price: number;
+          image_path: string | null;
+          status: "available" | "sold" | "hidden";
+          created_at: string;
+          updated_at: string;
+        },
+        {
+          id?: string;
+          user_id: string;
+          title: string;
+          description: string;
+          category: string;
+          condition: "new" | "like_new" | "good" | "fair";
+          price: number;
+          image_path?: string | null;
+          status?: "available" | "sold" | "hidden";
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -707,6 +795,10 @@ export type Database = {
       };
       campus_fix_reopen_issue: {
         Args: { p_issue_id: string; p_reason: string; p_request_id: string };
+        Returns: Database["public"]["Tables"]["campus_issues"]["Row"];
+      };
+      campus_fix_resolve_issue: {
+        Args: { p_issue_id: string; p_request_id?: string; p_resolution_notes?: string | null };
         Returns: Database["public"]["Tables"]["campus_issues"]["Row"];
       };
       campus_fix_assign_issue: {

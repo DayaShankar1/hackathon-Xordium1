@@ -22,7 +22,11 @@ export async function processNotificationQueue(limit = 10) {
       supabase.from("campus_fix_contacts").select("whatsapp_number,whatsapp_consent,is_active").eq("id", log.contact_id ?? "").single(),
     ]);
 
-    if (issue.error || contact.error || !contact.data.whatsapp_number || !contact.data.whatsapp_consent || !contact.data.is_active) {
+    const recipientNumber =
+      configuration.environment.CAMPUSFIX_AUTHORITY_WHATSAPP_NUMBER ??
+      (contact.data?.whatsapp_number && contact.data?.whatsapp_consent && contact.data?.is_active ? contact.data.whatsapp_number : null);
+
+    if (issue.error || !recipientNumber) {
       await supabase.rpc("campus_fix_complete_notification", {
         p_notification_id: log.id, p_status: "suppressed", p_provider_message_sid: null,
         p_provider_status: null, p_error_code: "recipient_unavailable", p_error_message: "No active consented WhatsApp recipient.",
@@ -34,7 +38,7 @@ export async function processNotificationQueue(limit = 10) {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
     const outcome = await sendWhatsApp({
       notificationId: log.id,
-      to: contact.data.whatsapp_number,
+      to: recipientNumber,
       referenceId: issue.data.reference_id,
       title: issue.data.title,
       location: `${issue.data.building}, ${issue.data.location}`,

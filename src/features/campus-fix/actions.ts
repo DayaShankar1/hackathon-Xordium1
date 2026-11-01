@@ -4,10 +4,13 @@ import { revalidatePath } from "next/cache";
 
 import { getVerifiedClaims } from "@/features/auth/session";
 import type { ActionResult } from "@/lib/action-result";
+import { getWhatsAppConfiguration } from "@/lib/env.server";
 import type { Json } from "@/types/database";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { createClient } from "@/utils/supabase/server";
 
 import { processCampusFixNotifications } from "./notifications/service";
+import { sendWhatsApp } from "./notifications/twilio-provider";
 import {
   assignmentSchema,
   categoryRouteSchema,
@@ -17,6 +20,7 @@ import {
   editIssueSchema,
   moderationSchema,
   reopenSchema,
+  resolveIssueSchema,
   scopeSchema,
   staffUpdateSchema,
   transitionSchema,
@@ -75,9 +79,92 @@ export async function createCampusIssue(input: unknown): Promise<ActionResult<{ 
   });
   if (result.error || !result.data) return { ok: false, error: databaseError(result.error ?? {}, "The issue could not be submitted.") };
 
-  const notification = await processCampusFixNotifications();
+  let notificationState = "pending";
+
+  if (parsed.data.notifyAuthority) {
+    const config = getWhatsAppConfiguration();
+    if (config.enabled) {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
+      const admin = createAdminClient();
+
+      let contactNumber: string | null = null;
+      if (result.data.assigned_contact_id) {
+        const { data: contact } = await admin
+          .from("campus_fix_contacts")
+          .select("whatsapp_number, whatsapp_consent, is_active")
+          .eq("id", result.data.assigned_contact_id)
+          .maybeSingle();
+
+        if (contact?.is_active && contact?.whatsapp_consent && contact?.whatsapp_number) {
+          contactNumber = contact.whatsapp_number;
+        }
+      }
+
+      const targetNumber = config.environment.CAMPUSFIX_AUTHORITY_WHATSAPP_NUMBER || contactNumber;
+
+      if (targetNumber) {
+        console.log(`[CampusFix] Sending WhatsApp alert to authority (${targetNumber}) for issue ${result.data.reference_id}`);
+        const outcome = await sendWhatsApp({
+          notificationId: result.data.id,
+          to: targetNumber,
+          referenceId: result.data.reference_id,
+          title: result.data.title,
+          location: `${result.data.building}, ${result.data.location}`,
+          priority: result.data.priority,
+          issueLink: `${siteUrl}/app/campus-fix/${result.data.id}`,
+        });
+
+        console.log(`[CampusFix] WhatsApp delivery outcome:`, outcome);
+
+        if (outcome.state === "accepted") {
+          notificationState = "processed";
+          try {
+            const { data: existingLog } = await admin
+              .from("campus_fix_notification_logs")
+              .select("id")
+              .eq("issue_id", result.data.id)
+              .eq("event_type", "issue_created")
+              .maybeSingle();
+
+            if (existingLog) {
+              await admin
+                .from("campus_fix_notification_logs")
+                .update({
+                  status: outcome.providerStatus === "queued" ? "queued" : "accepted",
+                  provider_message_sid: outcome.providerMessageSid,
+                  provider_status: outcome.providerStatus,
+                  last_error_code: null,
+                  last_error_message: null,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", existingLog.id);
+            } else {
+              await admin.from("campus_fix_notification_logs").insert({
+                issue_id: result.data.id,
+                event_type: "issue_created",
+                channel: "whatsapp",
+                status: outcome.providerStatus === "queued" ? "queued" : "accepted",
+                provider_message_sid: outcome.providerMessageSid,
+                provider_status: outcome.providerStatus,
+                idempotency_key: `${result.data.id}:direct_authority_notify`,
+              });
+            }
+          } catch (logErr) {
+            console.error("[CampusFix] could not record notification log:", logErr);
+          }
+        }
+      }
+    }
+  }
+
+  try {
+    await processCampusFixNotifications();
+  } catch (queueErr) {
+    console.warn("[CampusFix] queue processing warning:", queueErr);
+  }
+
   refresh(result.data.id);
-  return { ok: true, data: { id: result.data.id, referenceId: result.data.reference_id, notificationState: notification.state } };
+  return { ok: true, data: { id: result.data.id, referenceId: result.data.reference_id, notificationState } };
 }
 
 export async function editCampusIssue(input: unknown): Promise<ActionResult<{ id: string }>> {
@@ -109,8 +196,32 @@ export async function transitionCampusIssue(input: unknown): Promise<ActionResul
   const parsed = transitionSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the status update." };
   const supabase = await createClient();
+
+  let expectedVersion = parsed.data.expectedVersion;
+
+  if (parsed.data.newStatus === "resolved") {
+    const current = await supabase.from("campus_issues").select("status, version").eq("id", parsed.data.issueId).single();
+    if (current.data?.status === "submitted") {
+      const ack = await supabase.rpc("campus_fix_transition_issue", {
+        p_issue_id: parsed.data.issueId,
+        p_expected_version: expectedVersion,
+        p_new_status: "acknowledged",
+        p_note: "Issue acknowledged before resolution",
+        p_resolution_notes: null,
+        p_rejection_reason: null,
+        p_estimated_resolution_at: null,
+        p_evidence: [],
+        p_request_id: crypto.randomUUID(),
+      });
+      if (ack.error) {
+        return { ok: false, error: databaseError(ack.error, "Could not acknowledge issue before resolving.") };
+      }
+      expectedVersion += 1;
+    }
+  }
+
   const result = await supabase.rpc("campus_fix_transition_issue", {
-    p_issue_id: parsed.data.issueId, p_expected_version: parsed.data.expectedVersion,
+    p_issue_id: parsed.data.issueId, p_expected_version: expectedVersion,
     p_new_status: parsed.data.newStatus, p_note: parsed.data.note,
     p_resolution_notes: parsed.data.resolutionNotes ?? null,
     p_rejection_reason: parsed.data.rejectionReason ?? null,
@@ -147,13 +258,140 @@ export async function reopenCampusIssue(input: unknown): Promise<ActionResult<{ 
   return { ok: true, data: { id: result.data.id } };
 }
 
+export async function resolveCampusIssue(input: unknown): Promise<ActionResult<{ id: string }>> {
+  const parsed = resolveIssueSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid resolve request." };
+  const auth = await viewer();
+  if (!auth.ok) return auth;
+
+  const supabase = await createClient();
+  const requestId = crypto.randomUUID();
+
+  // Try direct resolve RPC if available
+  const directResult = await supabase.rpc("campus_fix_resolve_issue", {
+    p_issue_id: parsed.data.issueId,
+    p_resolution_notes: parsed.data.resolutionNotes ?? "Issue marked as resolved.",
+    p_request_id: requestId,
+  });
+
+  if (!directResult.error && directResult.data) {
+    await processCampusFixNotifications();
+    refresh(parsed.data.issueId);
+    return { ok: true, data: { id: parsed.data.issueId } };
+  }
+
+  // Fallback workflow using transition
+  const { data: issue, error: issueError } = await supabase
+    .from("campus_issues")
+    .select("id, user_id, status, version")
+    .eq("id", parsed.data.issueId)
+    .single();
+
+  if (issueError || !issue) return { ok: false, error: "Issue not found." };
+  if (["resolved", "closed", "rejected"].includes(issue.status)) {
+    return { ok: false, error: "This issue is already resolved or closed." };
+  }
+
+  let currentVersion = issue.version;
+
+  // If issue is still in submitted status, transition to acknowledged first
+  if (issue.status === "submitted") {
+    const ackResult = await supabase.rpc("campus_fix_transition_issue", {
+      p_issue_id: parsed.data.issueId,
+      p_expected_version: currentVersion,
+      p_new_status: "acknowledged",
+      p_note: "Issue acknowledged before resolution",
+      p_resolution_notes: null,
+      p_rejection_reason: null,
+      p_estimated_resolution_at: null,
+      p_evidence: [],
+      p_request_id: crypto.randomUUID(),
+    });
+    if (ackResult.error) {
+      return { ok: false, error: databaseError(ackResult.error, "Could not acknowledge issue before resolving.") };
+    }
+    currentVersion += 1;
+  }
+
+  const notes = parsed.data.resolutionNotes && parsed.data.resolutionNotes.trim().length >= 10
+    ? parsed.data.resolutionNotes.trim()
+    : "Issue marked as resolved by authority/reporter.";
+
+  const transitionResult = await supabase.rpc("campus_fix_transition_issue", {
+    p_issue_id: parsed.data.issueId,
+    p_expected_version: currentVersion,
+    p_new_status: "resolved",
+    p_note: "Issue marked as resolved",
+    p_resolution_notes: notes,
+    p_rejection_reason: null,
+    p_estimated_resolution_at: null,
+    p_evidence: [],
+    p_request_id: requestId,
+  });
+
+  if (transitionResult.error || !transitionResult.data) {
+    return { ok: false, error: databaseError(transitionResult.error ?? {}, "The issue could not be resolved.") };
+  }
+
+  await processCampusFixNotifications();
+  refresh(parsed.data.issueId);
+  return { ok: true, data: { id: parsed.data.issueId } };
+}
+
 export async function assignCampusIssue(input: unknown): Promise<ActionResult<{ id: string }>> {
   const parsed = assignmentSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the assignment." };
   const supabase = await createClient();
   const result = await supabase.rpc("campus_fix_assign_issue", { p_issue_id: parsed.data.issueId, p_contact_id: parsed.data.contactId, p_reason: parsed.data.reason, p_request_id: parsed.data.requestId });
   if (result.error || !result.data) return { ok: false, error: databaseError(result.error ?? {}, "The issue could not be assigned.") };
-  await processCampusFixNotifications();
+
+  const config = getWhatsAppConfiguration();
+  if (config.enabled) {
+    try {
+      const admin = createAdminClient();
+      const { data: contact } = await admin
+        .from("campus_fix_contacts")
+        .select("whatsapp_number, staff_name")
+        .eq("id", parsed.data.contactId)
+        .maybeSingle();
+
+      const targetNumber = config.environment.CAMPUSFIX_AUTHORITY_WHATSAPP_NUMBER || contact?.whatsapp_number;
+      if (targetNumber) {
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
+        const outcome = await sendWhatsApp({
+          notificationId: result.data.id,
+          to: targetNumber,
+          referenceId: result.data.reference_id,
+          title: `[Assigned to ${contact?.staff_name || "Authority"}] ${result.data.title}`,
+          location: `${result.data.building}, ${result.data.location}`,
+          priority: result.data.priority,
+          issueLink: `${siteUrl}/app/campus-fix/${result.data.id}`,
+        });
+
+        if (outcome.state === "accepted") {
+          await admin
+            .from("campus_fix_notification_logs")
+            .update({
+              status: outcome.providerStatus === "queued" ? "queued" : "accepted",
+              provider_message_sid: outcome.providerMessageSid,
+              provider_status: outcome.providerStatus,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("issue_id", result.data.id)
+            .eq("event_type", "issue_assigned");
+        }
+      }
+    } catch (err) {
+      console.error("[CampusFix] assign notification error:", err);
+    }
+  }
+
+  try {
+    await processCampusFixNotifications();
+  } catch (err) {
+    console.warn("[CampusFix] queue processing error:", err);
+  }
+
   refresh(result.data.id);
   return { ok: true, data: { id: result.data.id } };
 }

@@ -35,6 +35,10 @@ export const editIssueSchema = issueFieldsSchema.omit({ category: true, isAnonym
 
 export const voteSchema = z.object({ issueId: z.string().uuid(), vote: z.enum(["agree", "disagree"]) });
 export const reopenSchema = z.object({ issueId: z.string().uuid(), reason: z.string().trim().min(10).max(1000), requestId: z.string().uuid() });
+export const resolveIssueSchema = z.object({
+  issueId: z.string().uuid(),
+  resolutionNotes: z.string().trim().max(4000).optional(),
+});
 
 export const transitionSchema = z.object({
   issueId: z.string().uuid(),

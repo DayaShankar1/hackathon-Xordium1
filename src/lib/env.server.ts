@@ -8,8 +8,23 @@ const serverEnvironmentSchema = z.object({
   TWILIO_ACCOUNT_SID: z.string().startsWith("AC").optional(),
   TWILIO_AUTH_TOKEN: z.string().min(20).optional(),
   TWILIO_WHATSAPP_FROM: z.string().min(8).optional(),
-  TWILIO_CONTENT_SID_CAMPUS_FIX: z.string().startsWith("HX").optional(),
-  TWILIO_STATUS_CALLBACK_URL: z.string().url().optional(),
+  TWILIO_CONTENT_SID_CAMPUS_FIX: z.string().optional().transform((val) => {
+    if (!val || val.trim() === "" || val === "YOUR_CONTENT_SID" || !val.startsWith("HX")) return undefined;
+    return val.trim();
+  }),
+  TWILIO_STATUS_CALLBACK_URL: z.string().optional().transform((val) => {
+    if (!val || val.trim() === "" || val === "YOUR_CONTENT_SID") return undefined;
+    try {
+      new URL(val);
+      return val.trim();
+    } catch {
+      return undefined;
+    }
+  }),
+  CAMPUSFIX_AUTHORITY_WHATSAPP_NUMBER: z.string().optional().transform((val) => {
+    if (!val || val.trim() === "" || val === "YOUR_WHATSAPP_NUMBER") return undefined;
+    return val.trim();
+  }),
   CRON_SECRET: z.string().min(20).optional(),
 });
 
@@ -22,6 +37,7 @@ export function getCampusFixServerEnvironment() {
     TWILIO_WHATSAPP_FROM: process.env.TWILIO_WHATSAPP_FROM,
     TWILIO_CONTENT_SID_CAMPUS_FIX: process.env.TWILIO_CONTENT_SID_CAMPUS_FIX,
     TWILIO_STATUS_CALLBACK_URL: process.env.TWILIO_STATUS_CALLBACK_URL,
+    CAMPUSFIX_AUTHORITY_WHATSAPP_NUMBER: process.env.CAMPUSFIX_AUTHORITY_WHATSAPP_NUMBER,
     CRON_SECRET: process.env.CRON_SECRET,
   });
 }
@@ -29,7 +45,7 @@ export function getCampusFixServerEnvironment() {
 export function getWhatsAppConfiguration() {
   const environment = getCampusFixServerEnvironment();
   if (environment.CAMPUSFIX_WHATSAPP_ENABLED !== "true") return { enabled: false as const, reason: "channel_disabled" as const };
-  if (!environment.SUPABASE_SECRET_KEY || !environment.TWILIO_ACCOUNT_SID || !environment.TWILIO_AUTH_TOKEN || !environment.TWILIO_WHATSAPP_FROM || !environment.TWILIO_CONTENT_SID_CAMPUS_FIX || !environment.TWILIO_STATUS_CALLBACK_URL) {
+  if (!environment.SUPABASE_SECRET_KEY || !environment.TWILIO_ACCOUNT_SID || !environment.TWILIO_AUTH_TOKEN || !environment.TWILIO_WHATSAPP_FROM) {
     return { enabled: false as const, reason: "configuration_missing" as const };
   }
   return { enabled: true as const, environment };

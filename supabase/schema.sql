@@ -6,6 +6,8 @@
 -- Then apply supabase/migrations/202611010004_campus_fix_foundation.sql.
 -- Then apply supabase/migrations/202611010005_campus_fix_timeline_rls_fix.sql.
 -- Then apply supabase/migrations/202611010006_campus_fix_authority_notification_preference.sql.
+-- Then apply supabase/migrations/202611010007_campus_fix_resolve_issue.sql.
+-- Then apply supabase/migrations/202611010008_campus_fix_standard_authorities.sql.
 
 begin;
 

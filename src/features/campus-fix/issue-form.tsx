@@ -49,8 +49,13 @@ export function IssueForm({ mode, issueId, initialValues }: { mode: "create" | "
             Object.entries(result.fieldErrors ?? {}).forEach(([field, messages]) => setError(field as keyof IssueFormValues, { message: messages[0] }));
             throw new Error(result.error);
           }
-          toast.success("Issue submitted successfully.");
-          router.push(`/app/campus-fix/${result.data.id}?created=${encodeURIComponent(result.data.referenceId)}`);
+          if (values.notifyAuthority && (result.data.notificationState === "processed" || result.data.notificationState === "accepted")) {
+            toast.success("Issue submitted and authority notified via WhatsApp!");
+            router.push(`/app/campus-fix/${result.data.id}?created=${encodeURIComponent(result.data.referenceId)}&notified=true`);
+          } else {
+            toast.success("Issue submitted successfully.");
+            router.push(`/app/campus-fix/${result.data.id}?created=${encodeURIComponent(result.data.referenceId)}`);
+          }
         } else {
           if (!issueId) throw new Error("Issue identifier is missing.");
           const result = await editCampusIssue({ ...values, id: issueId, requestId: crypto.randomUUID() });

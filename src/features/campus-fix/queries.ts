@@ -53,6 +53,11 @@ export async function getCampusFixDashboard(rawFilters: IssueFilters, _viewerId:
   const from = (filters.page - 1) * CAMPUS_FIX_PAGE_SIZE;
   const to = from + CAMPUS_FIX_PAGE_SIZE - 1;
   let listQuery = supabase.from("campus_issues").select(ISSUE_COLUMNS, { count: "exact" });
+  if (filters.view === "mine") {
+    listQuery = listQuery.neq("moderation_status", "deleted");
+  } else {
+    listQuery = listQuery.eq("moderation_status", "visible");
+  }
   if (filters.q) listQuery = listQuery.or(`title.ilike.%${filters.q}%,description.ilike.%${filters.q}%`);
   if (filters.category !== "all") listQuery = listQuery.eq("category", filters.category);
   if (filters.building) listQuery = listQuery.ilike("building", `%${filters.building}%`);
@@ -126,6 +131,9 @@ export async function getCampusIssue(id: string): Promise<ActionResult<CampusIss
   if (issueResult.error) return { ok: false, error: queryError("issue detail failed", issueResult.error) };
   if (!issueResult.data) return { ok: false, error: "Issue not found." };
   const issue = issueResult.data as unknown as IssueRow;
+  if (issue.moderation_status === "deleted") {
+    return { ok: false, error: "This issue has been removed." };
+  }
 
   const [hydrated, evidenceResult, timelineResult, permissionsResult, voteResult, relatedResult, assignmentsResult] = await Promise.all([
     hydrateIssues([issue]),
@@ -221,7 +229,7 @@ export async function getCampusFixStaffIssues(): Promise<ActionResult<CampusIssu
   if (!viewer.ok) return viewer;
   if (!viewer.data.isStaff && viewer.data.role !== "admin") return { ok: false, error: "Authorized staff access is required." };
   const supabase = await createClient();
-  const result = await supabase.from("campus_issues").select(ISSUE_COLUMNS).in("status", ACTIVE_ISSUE_STATUSES).order("priority", { ascending: false }).order("created_at").limit(500);
+  const result = await supabase.from("campus_issues").select(ISSUE_COLUMNS).eq("moderation_status", "visible").in("status", ACTIVE_ISSUE_STATUSES).order("priority", { ascending: false }).order("created_at").limit(500);
   if (result.error) return { ok: false, error: queryError("staff queue failed", result.error) };
   const rows = result.data as unknown as IssueRow[];
   const permissions = await Promise.all(rows.map((issue) => supabase.rpc("campus_fix_issue_permissions", { p_issue_id: issue.id })));
