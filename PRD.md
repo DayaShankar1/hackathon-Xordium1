@@ -118,7 +118,7 @@ Needs to moderate content, manage reports and update issue statuses.
 
 **Admin can:**
 - View all issues.
-- Change status: Submitted → In Review → In Progress → Resolved (or Rejected).
+- Change status: Submitted → Acknowledged → In Progress → Resolved → Closed (or Rejected/Reopened).
 - Add an update note.
 
 **MVP acceptance criteria:**

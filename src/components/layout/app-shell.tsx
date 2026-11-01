@@ -10,6 +10,7 @@ import { appNavItems } from "@/lib/site";
 export type ShellProfile = {
   displayName: string;
   email?: string;
+  isStaff?: boolean;
   role: "student" | "admin";
 };
 
@@ -83,6 +84,16 @@ export function AppShell({ children, profile }: AppShellProps) {
             >
               <ShieldCheck className="size-[18px]" />
               <span className="flex-1">Admin Panel</span>
+              <ChevronRight className="size-3.5 opacity-60" />
+            </Link>
+          )}
+          {profile.isStaff && profile.role !== "admin" && (
+            <Link
+              href="/app/staff/campus-fix"
+              className={`group flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition ${pathname.startsWith("/app/staff/campus-fix") ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}
+            >
+              <ShieldCheck className="size-[18px]" />
+              <span className="flex-1">CampusFix Staff</span>
               <ChevronRight className="size-3.5 opacity-60" />
             </Link>
           )}
@@ -168,6 +179,11 @@ export function AppShell({ children, profile }: AppShellProps) {
               >
                 <ShieldCheck className="size-3.5" />
                 Admin
+              </Link>
+            )}
+            {profile.isStaff && profile.role !== "admin" && (
+              <Link href="/app/staff/campus-fix" className="flex min-h-10 shrink-0 items-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-bold text-white">
+                <ShieldCheck className="size-3.5" />CampusFix Staff
               </Link>
             )}
           </nav>

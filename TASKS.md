@@ -16,7 +16,11 @@ Ship a working, deployed CampusSphere MVP in 12–24 hours. The team should avoi
 - Real signup, automatic student profile, SSR session persistence, login and logout: verified with email confirmation disabled.
 - Duplicate registration and student-to-admin role escalation: correctly rejected.
 - Lost & Found persistence, photographs, claims, RLS and cross-account permissions: implemented and verified.
-- Next priority: keep other modules untouched until Lost & Found review is complete.
+- Resource Hub persistence, private documents, signed downloads, ownership and admin moderation: implemented and verified.
+- CampusFix reporting, votes, evidence, lifecycle, scoped staff, admin moderation, analytics and notification queue: implemented and verified.
+- Concerned-authority notification opt-in/opt-out is persisted and verified without exposing contact details.
+- Live Twilio delivery remains gated on external credentials, consented recipients and an approved WhatsApp sender/template.
+- Next priority: keep remaining modules untouched until CampusFix review is complete.
 
 ## Suggested roles (4-person team)
 

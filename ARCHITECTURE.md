@@ -38,6 +38,10 @@ Each feature should own its queries/mutations in a small service file rather tha
 
 Lost & Found follows this structure in `src/features/lost-found/`: schemas and constants define the contract, `queries.ts` handles reads and signed URLs, `actions.ts` handles authenticated mutations, and `storage.ts` owns browser uploads and cleanup.
 
+Resource Hub follows the same feature boundary in `src/features/resources/`, with short-lived signed view/download links and an admin-only moderation route under `/app/admin/resources`.
+
+CampusFix uses `src/features/campus-fix/` for typed queries/actions, private evidence, voting, lifecycle and scoped staff/admin workflows. Transactional PostgreSQL functions keep current issue state and immutable history synchronized. A durable notification queue commits with issue changes, while server-only Twilio processing occurs after commit and remains optional.
+
 ## 3. Authentication flow
 
 1. User signs up or signs in through a validated Server Action and Supabase Auth.
@@ -71,6 +75,8 @@ Create private buckets by default:
 For a fast public demo, public read access may be enabled only for non-sensitive listing images and public resource files. Never store identity documents or sensitive personal information in public buckets.
 
 Prefer signed URLs for private files. Validate allowed MIME types and file size in the UI and enforce storage policies.
+
+CampusFix evidence is always private and linked to an authorized issue row before signed access is allowed.
 
 ## 6. Realtime
 

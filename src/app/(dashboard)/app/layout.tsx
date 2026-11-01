@@ -26,17 +26,17 @@ export default async function DashboardLayout({ children }: Readonly<{ children:
     redirect("/login");
   }
 
-  const { data } = await supabase
-    .from("profiles")
-    .select("display_name, role")
-    .eq("id", userId)
-    .maybeSingle<ProfileRow>();
+  const [{ data }, staff] = await Promise.all([
+    supabase.from("profiles").select("display_name, role").eq("id", userId).maybeSingle<ProfileRow>(),
+    supabase.from("campus_fix_contacts").select("id").eq("profile_id", userId).eq("is_active", true).maybeSingle(),
+  ]);
 
   const email = typeof claims?.email === "string" ? claims.email : undefined;
   const emailName = email?.split("@")[0]?.replace(/[._-]+/g, " ") || "Student";
   const profile: ShellProfile = {
     displayName: data?.display_name || emailName,
     email,
+    isStaff: Boolean(staff.data),
     role: data?.role === "admin" ? "admin" : "student",
   };
 

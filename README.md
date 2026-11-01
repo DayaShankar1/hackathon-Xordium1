@@ -75,6 +75,11 @@ Foundation and authentication integration are complete:
 - Honest missing-configuration state; no mocked database writes or records.
 - Lost & Found create, browse, search, filter, pagination, detail, edit, resolve, delete and private claim workflows.
 - Private Lost & Found photographs with signed URLs and Storage cleanup.
+- Resource Hub uploads, search, filters, pagination, details, signed viewing/downloads and owner management.
+- Database-enforced Resource Hub moderation with private files and admin hide/restore/remove controls.
+- CampusFix issue dashboard, private evidence, community voting, lifecycle timeline, reopen, staff assignment and admin analytics.
+- Secure “Contact concerned authority” reporting preference with automatic protected routing.
+- Durable server-only WhatsApp notification queue with truthful disabled/failure states and signed Twilio callback handling.
 
 The local publishable key is configured and ignored by Git. Live checks confirm all 10 required tables, immediate signup sessions, automatic student profiles, duplicate-email rejection, cookie-backed session persistence, login, logout, and database-enforced role protection.
 

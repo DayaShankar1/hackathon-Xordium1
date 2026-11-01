@@ -1,5 +1,6 @@
 import { Activity, CalendarCog, ListChecks, ShieldCheck } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { PageHeader } from "@/components/shared/page-header";
 
@@ -30,6 +31,7 @@ export default function AdminPage() {
         eyebrow="Restricted workspace"
         title="Campus operations, clearly managed."
         description="This route performs a server-side role check in addition to database-level RLS policies."
+        action={<div className="flex flex-wrap gap-2"><Link href="/app/admin/resources" className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700">Moderate resources</Link><Link href="/app/admin/campus-fix" className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-900 px-4 text-sm font-bold text-white">Manage CampusFix</Link></div>}
       />
 
       <section className="rounded-[24px] bg-[#24234d] p-6 text-white shadow-[0_20px_55px_rgba(35,35,77,0.16)] sm:p-8">

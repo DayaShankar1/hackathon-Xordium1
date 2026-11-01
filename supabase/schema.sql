@@ -2,6 +2,10 @@
 -- Review policies and test with separate student/admin accounts before production.
 -- Run this in the Supabase SQL Editor.
 -- Then apply supabase/migrations/202611010002_lost_found_foundation.sql.
+-- Then apply supabase/migrations/202611010003_resource_hub_foundation.sql.
+-- Then apply supabase/migrations/202611010004_campus_fix_foundation.sql.
+-- Then apply supabase/migrations/202611010005_campus_fix_timeline_rls_fix.sql.
+-- Then apply supabase/migrations/202611010006_campus_fix_authority_notification_preference.sql.
 
 begin;
 
